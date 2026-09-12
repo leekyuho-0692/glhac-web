@@ -1,0 +1,52 @@
+name: Deploy (가비아)
+
+# 홈페이지를 가비아 서버 /var/www/glhac-home 으로 보낸다.
+# 실제 절차는 scripts/deploy.sh — 맥에서 손으로 돌릴 때와 같은 길을 밟는다.
+#
+# 필요한 시크릿: GLHAC_SSH_KEY · GLHAC_SSH_HOST
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "배포하려면 'deploy' 를 입력하세요"
+        required: true
+        default: ''
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: inputs.confirm == 'deploy'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 시크릿 확인
+        env:
+          KEY: ${{ secrets.GLHAC_SSH_KEY }}
+          HOST: ${{ secrets.GLHAC_SSH_HOST }}
+        run: |
+          [ -n "$KEY" ]  || { echo "::error::GLHAC_SSH_KEY 가 없습니다"; exit 1; }
+          [ -n "$HOST" ] || { echo "::error::GLHAC_SSH_HOST 가 없습니다"; exit 1; }
+
+      - name: SSH 키 준비
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.GLHAC_SSH_KEY }}" > ~/.ssh/glhac.pem
+          chmod 600 ~/.ssh/glhac.pem
+          # env 로 넘길 때 '~' 는 문자 그대로 전달된다 — 절대경로로 풀어 둔다
+          echo "SSH_KEY_PATH=$HOME/.ssh/glhac.pem" >> "$GITHUB_ENV"
+          ssh-keyscan -H "$(echo '${{ secrets.GLHAC_SSH_HOST }}' | cut -d@ -f2)" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: 배포
+        env:
+          GLHAC_SSH_KEY: ${{ env.SSH_KEY_PATH }}
+          GLHAC_SSH_HOST: ${{ secrets.GLHAC_SSH_HOST }}
+        run: bash scripts/deploy.sh
+
+      - name: 정리
+        if: always()
+        run: rm -f "$HOME/.ssh/glhac.pem"

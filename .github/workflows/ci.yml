@@ -1,0 +1,80 @@
+name: CI
+
+# 정적 사이트다 — 돌려 볼 서버가 없다. 그래서 '배포되면 깨질 것'을 미리 잡는다.
+# 여기 넣은 검사들은 전부 실제로 한 번씩 겪은 사고다.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 자바스크립트 문법
+        run: |
+          # 인라인 <script> 를 뽑아 node --check. 문법이 깨지면 화면이 통째로 멈춘다.
+          python3 - <<'PY'
+          import re, subprocess, sys, pathlib, tempfile, os
+          bad = 0
+          for html in ["index.html", "board/index.html"]:
+              s = pathlib.Path(html).read_text(encoding="utf-8")
+              for i, b in enumerate(re.findall(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", s, re.S)):
+                  f = os.path.join(tempfile.mkdtemp(), "c.js")
+                  pathlib.Path(f).write_text(b, encoding="utf-8")
+                  r = subprocess.run(["node", "--check", f], capture_output=True, text=True)
+                  if r.returncode:
+                      print("::error file=%s::블록 %d 문법 오류\n%s" % (html, i, r.stderr[-400:]))
+                      bad += 1
+          print("문법 검사 완료" if not bad else "오류 %d건" % bad)
+          sys.exit(1 if bad else 0)
+          PY
+
+      - name: 참조된 파일이 실제로 있나
+        run: |
+          # 번들·이미지 경로가 어긋나면 화면이 빈 채로 뜬다(실측: 번들 이름 변경 때).
+          python3 - <<'PY'
+          import re, pathlib, sys
+          missing = []
+          for html in ["index.html", "board/index.html"]:
+              base = pathlib.Path(html).parent
+              s = pathlib.Path(html).read_text(encoding="utf-8")
+              for ref in re.findall(r'(?:src|href)="(\./[^"#?]+|[^":#?]+\.(?:js|css|jpg|png|svg|mp4))"', s):
+                  p = (base / ref.lstrip("./")).resolve()
+                  if not p.exists() and not (pathlib.Path(ref.lstrip("./"))).exists():
+                      missing.append("%s → %s" % (html, ref))
+          for m in missing:
+              print("::error::참조 파일 없음: " + m)
+          print("참조 확인 완료" if not missing else "누락 %d건" % len(missing))
+          sys.exit(1 if missing else 0)
+          PY
+
+      - name: 언어별 시안이 모두 있나
+        run: |
+          # 하나라도 없으면 그 언어에서 2번 화면이 빈칸이 된다.
+          for l in ko en id; do
+            [ -f "about-visual-$l.jpg" ] || { echo "::error::about-visual-$l.jpg 없음"; exit 1; }
+          done
+          echo "시안 3종 확인"
+
+      - name: 비밀키 누출 검사
+        run: |
+          if git grep -InE 'sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY' -- . ; then
+            echo "::error::비밀키 패턴 발견"; exit 1
+          fi
+          echo "누출 없음"
+
+      - name: 배포 스크립트 문법
+        run: bash -n scripts/deploy.sh && echo "deploy.sh OK"
