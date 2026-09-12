@@ -74,8 +74,8 @@ def test_화면을_누르면_소리가_풀린다():
                             p.mouse.click(640, 300),
                             p.wait_for_timeout(6000)))
     names = ok_names(played)
-    assert "door-creak.mp3" in names, "문 소리가 안 났다: %s" % played
-    assert {"janggu.mp3"} & names, "악기 소리가 안 났다: %s" % played
+    assert "door-creak2.mp3" in names, "문 소리가 안 났다: %s" % played
+    assert {"gong.mp3"} & names, "악기 소리가 안 났다: %s" % played
     assert btn == "none", "소리가 났는데 버튼이 남아 있다"
     assert not errs
 
@@ -86,24 +86,24 @@ def test_소리켜기_버튼이_실제로_동작한다():
                             p.click("#introSoundBtn"),
                             p.wait_for_timeout(2500)))
     names = ok_names(played)
-    assert "janggu.mp3" in names, "버튼을 눌렀는데 소리가 안 난다: %s" % played
+    assert "gong.mp3" in names, "버튼을 눌렀는데 소리가 안 난다: %s" % played
     # 같은 소리가 두 번 울리면(버튼 + 전역 리스너) 겹쳐 들린다
-    hits = [e for e in played if e["f"] == "janggu.mp3" and e["ok"]]
+    hits = [e for e in played if e["f"] == "gong.mp3" and e["ok"]]
     assert len(hits) == 1, "악기 소리가 %d번 겹쳐 울렸다" % len(hits)
     assert not errs
 
 
-def test_문소리는_문이_열릴_때_울린다():
-    """영상에서 문틈이 밝아지는 시점은 2.43초. 그보다 빠르거나 늦으면 어긋난다."""
+def test_문소리는_영상과_동시에_울린다():
+    """영상이 돌기 시작하는 순간에 나야 한다. 늦으면 화면과 따로 논다."""
     played, _, errs, _ = visit(ALLOWED, lambda p: p.wait_for_timeout(7000))
-    door = [e for e in played if e["f"] == "door-creak.mp3" and e["ok"]]
+    door = [e for e in played if e["f"] == "door-creak2.mp3" and e["ok"]]
     assert door, "문 소리가 안 났다: %s" % played
-    assert 2.0 <= door[0]["vt"] <= 2.9, "문 소리가 영상 %.2f초에 울렸다(기대 2.0~2.9)" % door[0]["vt"]
+    assert door[0]["vt"] <= 0.6, "문 소리가 영상 %.2f초에 울렸다(기대 0.6초 이내)" % door[0]["vt"]
     assert not errs
 
 
 @pytest.mark.parametrize("tz,lang,want", [
-    ("Asia/Seoul",       "ko-KR", "janggu.mp3"),
+    ("Asia/Seoul",       "ko-KR", "gong.mp3"),
     ("Asia/Jakarta",     "id-ID", "gamelan.mp3"),
     ("America/New_York", "en-US", "tadum.mp3"),
     ("Europe/Berlin",    "de-DE", "tadum.mp3"),

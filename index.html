@@ -419,13 +419,13 @@ body.hslides #about .about-full{display:block;width:100%;height:100%;
     var tz = '';
     try { tz = (Intl.DateTimeFormat().resolvedOptions().timeZone || ''); } catch(e){}
     var lang = (navigator.language || '').toLowerCase();
-    if (/Seoul/i.test(tz) || lang.indexOf('ko') === 0) return 'janggu';      // 한국 · 장구
+    if (/Seoul/i.test(tz) || lang.indexOf('ko') === 0) return 'gong';        // 한국 · 징
     if (/Jakarta|Makassar|Jayapura|Pontianak/i.test(tz) || lang.indexOf('id') === 0)
       return 'gamelan';                                                      // 인도네시아 · 가믈란
     return 'tadum';                                                          // 그 외 · 중립
   }
   try {
-    doorSound = new Audio('./intro/door-creak.mp3');   // 영상 속 문이 열릴 때
+    doorSound = new Audio('./intro/door-creak2.mp3');   // 영상 속 문이 열릴 때
     doorSound.volume = 0.5;                      // 악기 소리보다 낮게 — 배경이다
     doorSound.preload = 'auto';
   } catch(e) { doorSound = null; }
@@ -436,7 +436,7 @@ body.hslides #about .about-full{display:block;width:100%;height:100%;
   } catch(e) { introSound = null; }
 
   /* 두 소리는 각자 '차례'가 있다.
-       · 문 소리 — 영상에서 문틈이 밝아지는 2.43초(영상 재생 위치로 건다)
+       · 문 소리 — 인트로가 뜨는 순간(영상 시작과 동시에)
        · 악기 소리 — 글씨가 써지기 0.56초 전(인트로 시작 후 5.3초, 벽시계)
      차단돼 있다가 나중에 풀리면, **이미 지난 차례만** 그때 튼다.
      아직 안 온 차례는 건드리지 않는다 — 순서가 뒤집히면 연출이 무너진다. */
@@ -463,24 +463,13 @@ body.hslides #about .about-full{display:block;width:100%;height:100%;
   function playSound(fromUser){                // 사용자가 눌러 소리가 풀렸을 때
     var vid = document.getElementById('intro');
     var vt = vid ? vid.currentTime : 99;
-    if (vt < 3.4) fire('door', fromUser);      // 문이 아직 화면에 있을 때만 의미가 있다
+    if (vt < 2.0) fire('door', fromUser);      // 영상 초반일 때만 의미가 있다
     fire('inst', fromUser);
   }
 
-  // 문 소리 차례 — 영상 재생 위치에 건다(로딩이 늦어도 문과 어긋나지 않게)
-  (function(){
-    var vid = document.getElementById('intro'), armed = false;
-    function atDoor(){
-      if (armed) return;
-      if (!vid || vid.currentTime >= 2.20){
-        armed = true; cue.door = true;
-        if (vid) vid.removeEventListener('timeupdate', atDoor);
-        fire('door', false);
-      }
-    }
-    if (vid) vid.addEventListener('timeupdate', atDoor);
-    setTimeout(atDoor, 4000);                  // 영상이 안 뜨는 경우의 대비
-  })();
+  // 문 소리 차례 — 영상이 돌기 시작하는 그 순간
+  cue.door = true;
+  fire('door', false);
 
   // 악기 소리 차례 — 글씨보다 0.56초 먼저. 소리가 예고하고 글씨가 답한다.
   setTimeout(function(){ cue.inst = true; fire('inst', false); }, 5300);

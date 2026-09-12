@@ -1,3 +1,6 @@
-.DS_Store
 *.bak
 *.log
+*.pyc
+.DS_Store
+.pytest_cache/
+__pycache__/
