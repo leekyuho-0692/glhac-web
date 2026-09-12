@@ -1,15 +1,19 @@
 # -*- coding: utf-8 -*-
-"""인트로 효과음을 만든다 — intro/gong.mp3, intro/door-creak2.mp3.
+"""인트로 효과음을 만든다 — 징·가믈란·중립음·문 열리는 소리.
 
-소리를 손으로 만들어 두면 나중에 아무도 고칠 수 없다. 여기에 만드는 법을
-남긴다. 실행하면 배포된 것과 **같은 바이트**가 나온다(난수 씨앗 고정).
+소리를 손으로 만들어 두면 나중에 아무도 고칠 수 없다. 여기에 만드는 법을 남긴다.
 
-    python tools/make_intro_sounds.py [--check]
+    python tools/make_intro_sounds.py           # 확인만 한다(기본)
+    python tools/make_intro_sounds.py --write   # intro/ 를 덮어쓴다
 
-  --check  다시 만들어 보고 기존 파일과 같은지만 확인한다(덮어쓰지 않는다).
+기본이 '확인'인 이유: 지금 배포된 소리를 실수로 바꾸지 않기 위해서다.
 
-가믈란(gamelan.mp3)·중립음(tadum.mp3)은 이 스크립트가 만든 것이 아니라
-이전에 만들어 둔 파일을 그대로 쓴다.
+재현되는 것과 아닌 것
+  · gong.mp3 · door-creak2.mp3 — 배포된 것과 **바이트까지 같다**(난수 씨앗 고정).
+  · gamelan.mp3 · tadum.mp3   — 원래 만든 코드가 남지 않아, 기존 파일을 분석해
+    특성(기음·부분음·타격 시점·대역 비율)을 뽑아 다시 쓴 것이다. 바이트는 다르다.
+    tadum 은 거의 같고(저음 66.6→66.0%), gamelan 은 저음이 얇다(24.1→12.2%) —
+    타격 네 번(0.22·0.42·0.62·0.88초)과 비배음 구조는 같다.
 """
 import argparse
 import hashlib
@@ -79,6 +83,98 @@ def make_gong(out_wav):
     write_wav(out_wav, out)
 
 
+def make_gamelan(out_wav):
+    """가믈란 — 인도네시아. 낮은 공 위에 쇠막대를 잇달아 친다.
+
+    가믈란이 가믈란인 이유는 두 가지다.
+      ① **비배음** — 청동 막대·공의 부분음은 정수배가 아니다(x2.76, x8.02, x12.16 …).
+         정수배로 만들면 그냥 오르간 소리가 난다.
+      ② **겹쳐 치기** — 한 번이 아니라 잇달아 치고, 앞 소리가 죽기 전에 다음이 얹힌다.
+         0.22·0.42·0.62·0.88초에 넷을 더 얹는다.
+
+    낮은 울림(hum)을 따로 깐 이유: 실제 공은 때린 뒤에도 낮은 소리가 오래 남는다.
+    때리는 봉우리를 키우지 않으면서 저음만 채워야 막대 타격이 묻히지 않는다.
+    """
+    rng = np.random.default_rng(19)
+    dur = 2.0
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    out = np.zeros(n)
+
+    def strike(at, f0, amp, decay, partials):
+        """한 번 때린 소리를 at 초 위치에 얹는다. 높은 부분음일수록 빨리 죽는다."""
+        i0 = int(at * SR)
+        m = n - i0
+        if m <= 0:
+            return
+        tt = np.arange(m) / SR
+        v = np.zeros(m)
+        for mul, a in partials:
+            v += a * np.sin(2 * np.pi * f0 * mul * tt + rng.uniform(0, 6.28)) \
+                 * np.exp(-tt * decay * mul ** 0.35)
+        v += rng.normal(0, 1, m) * np.exp(-tt * 160) * 0.12      # 때리는 순간
+        v *= np.minimum(1, tt / 0.002)
+        out[i0:] += v * amp
+
+    # 낮은 공
+    strike(0.00, 62, 3.0, 0.15,
+           [(1.00, 1.00), (2.76, 0.34), (5.40, 0.20), (8.02, 0.26),
+            (9.21, 0.14), (12.16, 0.11), (22.12, 0.06), (33.56, 0.02)])
+
+    # 쇠막대 — 슬렌드로풍 네 음(정수비가 아니다). 짧고 세게 쳐야 또렷하다.
+    for at, f0 in ((0.22, 497), (0.42, 571), (0.62, 754), (0.88, 335)):
+        strike(at, f0, 4.5, 16.0,
+               [(1.00, 1.00), (2.39, 0.42), (4.61, 0.22), (7.13, 0.10)])
+
+    # 오래 남는 낮은 울림
+    out += (np.sin(2 * np.pi * 62 * t)
+            + 0.7 * np.sin(2 * np.pi * 93.5 * t + 1.1)) * np.exp(-t * 0.8) * 1.1
+
+    out /= np.max(np.abs(out)) + 1e-9
+    out *= 0.82
+    f = int(0.35 * SR)
+    out[-f:] *= np.cos(np.linspace(0, np.pi / 2, f)) ** 1.5
+    write_wav(out_wav, out)
+
+
+def make_tadum(out_wav):
+    """중립음 — '두둥'. 나라를 특정하지 않는 낮은 두 번.
+
+    악기를 흉내 내지 않는다. 낮은 기음(78Hz)에 배음을 조금 얹고 두 번 친다 —
+    첫 번째가 크고, 0.34초 뒤 두 번째가 받는다.
+    """
+    rng = np.random.default_rng(31)
+    dur = 2.0
+    n = int(dur * SR)
+    out = np.zeros(n)
+
+    def hit(at, amp, f0=78.0):
+        i0 = int(at * SR)
+        m = n - i0
+        if m <= 0:
+            return
+        tt = np.arange(m) / SR
+        # 때린 직후 음이 살짝 떨어진다 — 북 가죽이 늘어지는 느낌
+        f = f0 * (1 + 0.22 * np.exp(-tt * 26))
+        ph = 2 * np.pi * np.cumsum(f) / SR
+        v = np.sin(ph) * np.exp(-tt * 3.0)
+        v += 0.34 * np.sin(2 * ph) * np.exp(-tt * 5.2)
+        v += 0.16 * np.sin(3 * ph) * np.exp(-tt * 7.4)
+        v += 0.09 * np.sin(2 * np.pi * 490 * tt) * np.exp(-tt * 12)
+        v += rng.normal(0, 1, m) * np.exp(-tt * 120) * 0.10
+        v *= np.minimum(1, tt / 0.002)
+        out[i0:] += v * amp
+
+    hit(0.00, 1.00)
+    hit(0.34, 0.72)
+
+    out /= np.max(np.abs(out)) + 1e-9
+    out *= 0.84
+    f = int(0.4 * SR)
+    out[-f:] *= np.cos(np.linspace(0, np.pi / 2, f)) ** 1.5
+    write_wav(out_wav, out)
+
+
 def encode(src_wav, dst_mp3, bitrate):
     subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", src_wav,
                     "-c:a", "libmp3lame", "-b:a", bitrate, dst_mp3], check=True)
@@ -105,24 +201,32 @@ def make_door(dst_mp3):
     return True
 
 
+# 배포된 파일과 바이트까지 같아야 하는 것들
+EXACT = {"gong.mp3", "door-creak2.mp3"}
+
+
 def sha(path):
     return hashlib.sha256(open(path, "rb").read()).hexdigest()[:16]
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--check", action="store_true",
-                    help="다시 만들어 기존 파일과 같은지만 확인한다")
+    ap.add_argument("--write", action="store_true",
+                    help="intro/ 를 덮어쓴다(기본은 확인만)")
     args = ap.parse_args()
+    args.check = not args.write
 
     tmp = os.path.join(INTRO, ".make_tmp")
     os.makedirs(tmp, exist_ok=True)
     made = {}
 
-    gw = os.path.join(tmp, "gong.wav")
-    make_gong(gw)
-    encode(gw, os.path.join(tmp, "gong.mp3"), "112k")
-    made["gong.mp3"] = os.path.join(tmp, "gong.mp3")
+    for name, fn, br in (("gong", make_gong, "112k"),
+                         ("gamelan", make_gamelan, "112k"),
+                         ("tadum", make_tadum, "112k")):
+        w = os.path.join(tmp, name + ".wav")
+        fn(w)
+        encode(w, os.path.join(tmp, name + ".mp3"), br)
+        made[name + ".mp3"] = os.path.join(tmp, name + ".mp3")
 
     if make_door(os.path.join(tmp, "door-creak2.mp3")):
         made["door-creak2.mp3"] = os.path.join(tmp, "door-creak2.mp3")
@@ -134,9 +238,10 @@ def main():
             if not os.path.exists(cur):
                 print("  %-18s 기존 파일 없음" % name); bad += 1; continue
             same = sha(cur) == sha(new)
-            print("  %-18s %s  (기존 %s · 새로 %s)" %
-                  (name, "같음" if same else "다름", sha(cur), sha(new)))
-            if not same:
+            note = "" if name in EXACT else "  ← 특성만 재현(바이트는 원래 다르다)"
+            print("  %-18s %s  (기존 %s · 새로 %s)%s" %
+                  (name, "같음" if same else "다름", sha(cur), sha(new), note))
+            if not same and name in EXACT:
                 bad += 1
         else:
             os.replace(new, cur)
