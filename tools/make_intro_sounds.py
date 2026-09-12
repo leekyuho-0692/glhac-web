@@ -13,8 +13,8 @@
   · gamelan2.mp3 — 이 코드가 만든 것이 배포돼 있다(바이트까지 같다). 원래 쓰던
     gamelan.mp3 는 만든 코드가 남지 않아 재현할 수 없어, 특성만 따서 새로 쓰고
     교체했다. 저음이 얇아졌지만(24.1→12.2%) 타격 네 번과 비배음 구조는 같다.
-  · tadum.mp3 — 원래 코드가 남지 않았다. 분석해 다시 쓴 것이 거의 같지만
-    (저음 66.6→66.0%) 바이트는 다르다. 배포된 파일은 예전 것 그대로다.
+  · tadum2.mp3 — 가믈란과 같다. 원래 코드가 남지 않아 분석해 다시 쓰고 교체했다.
+    거의 같게 나왔다(저음 66.6→66.0%).
 """
 import argparse
 import hashlib
@@ -205,10 +205,10 @@ def make_door(dst_mp3):
 # 배포된 파일과 바이트까지 같아야 하는 것들
 # 소리 이름 → 배포 파일명. 내용이 바뀌면 이름을 바꿔 올린다(/intro/ 는 30일 캐시).
 FILENAME = {"gong": "gong.mp3", "gamelan": "gamelan2.mp3",
-            "tadum": "tadum.mp3", "door-creak2": "door-creak2.mp3"}
+            "tadum": "tadum2.mp3", "door-creak2": "door-creak2.mp3"}
 
 # 배포된 파일과 바이트까지 같아야 하는 것들
-EXACT = {"gong.mp3", "door-creak2.mp3", "gamelan2.mp3"}
+EXACT = {"gong.mp3", "door-creak2.mp3", "gamelan2.mp3", "tadum2.mp3"}
 
 
 def sha(path):
