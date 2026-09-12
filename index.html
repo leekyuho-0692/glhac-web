@@ -83,6 +83,11 @@ border:1px solid rgba(255,255,255,.18);border-radius:18px}#glhac-intro .hero h1{
   background:rgba(0,0,0,.28);color:#fff;font:500 14px/1 'Noto Sans KR',sans-serif;
   cursor:pointer;backdrop-filter:blur(4px)}
 #introSkip:hover{background:rgba(0,0,0,.45)}
+#introSoundBtn{display:none;position:absolute;right:132px;bottom:24px;z-index:100;
+  align-items:center;gap:6px;padding:10px 16px;border:1px solid rgba(255,255,255,.55);
+  border-radius:999px;background:rgba(0,0,0,.28);color:#fff;
+  font:500 14px/1 'Noto Sans KR',sans-serif;cursor:pointer;backdrop-filter:blur(4px)}
+#introSoundBtn:hover{background:rgba(0,0,0,.45)}
 @media (prefers-reduced-motion:reduce){#glhac-intro{display:none}}
 </style>
   <style>
@@ -379,6 +384,7 @@ body.hslides #about .about-full{display:block;width:100%;height:100%;
     <text id="s" x="40" y="166" font-family="'Snell Roundhand','Apple Chancery','Segoe Script','Brush Script MT',cursive" font-size="180" font-style="italic">GLHAC</text>
     <text id="f" x="40" y="166" font-family="'Snell Roundhand','Apple Chancery','Segoe Script','Brush Script MT',cursive" font-size="180" font-style="italic">GLHAC</text>
   </svg></div>
+  <button id="introSoundBtn" type="button" aria-label="소리 켜기"><span aria-hidden="true">♪</span> 소리 켜기</button>
   <button id="introSkip" type="button">건너뛰기 ›</button>
 </div>
 <div id="root"></div>
@@ -391,12 +397,117 @@ body.hslides #about .about-full{display:block;width:100%;height:100%;
   document.body.classList.add('intro-on');
   function finish(){
     if (el.classList.contains('done')) return;
+    stopSound();          // 화면이 사라졌는데 소리만 남으면 이상하다
     sessionStorage.setItem('glhacIntroSeen','1');
     el.classList.add('done');
     document.body.classList.remove('intro-on');
     setTimeout(function(){ el.remove(); }, 700);
   }
+  /* ── 인트로 효과음 ──────────────────────────────────────────────────────
+     손글씨가 그려지기 **직전**에 울린다(글씨 5.86s · 소리 5.30s).
+     소리가 먼저 오고 글씨가 따라 나오는 순서다.
+
+     나라별로 악기를 바꾼다. IP 로 나라를 알아내려면 외부 조회 서비스를 거쳐야
+     하고, 방문자 주소가 그 업체로 나간다. 같은 목적이면 브라우저가 이미 들고 있는
+     **시간대와 언어**로 충분하다 — 바깥으로 나가는 요청이 없다.
+
+     브라우저는 사용자가 그 사이트에서 한 번이라도 누르기 전까지 소리를 막는다.
+     그래서 첫 방문에는 대개 막힌다. 막혔을 때만 작은 '소리 켜기' 버튼을 내보내고,
+     인트로 화면 아무 데나 눌러도 풀리게 했다. 평소에는 버튼이 보이지 않는다. */
+  var introSound = null, doorSound = null;
+  function pickSound(){
+    var tz = '';
+    try { tz = (Intl.DateTimeFormat().resolvedOptions().timeZone || ''); } catch(e){}
+    var lang = (navigator.language || '').toLowerCase();
+    if (/Seoul/i.test(tz) || lang.indexOf('ko') === 0) return 'janggu';      // 한국 · 장구
+    if (/Jakarta|Makassar|Jayapura|Pontianak/i.test(tz) || lang.indexOf('id') === 0)
+      return 'gamelan';                                                      // 인도네시아 · 가믈란
+    return 'tadum';                                                          // 그 외 · 중립
+  }
+  try {
+    doorSound = new Audio('./intro/door-creak.mp3');   // 영상 속 문이 열릴 때
+    doorSound.volume = 0.5;                      // 악기 소리보다 낮게 — 배경이다
+    doorSound.preload = 'auto';
+  } catch(e) { doorSound = null; }
+  try {
+    introSound = new Audio('./intro/' + pickSound() + '.mp3');
+    introSound.volume = 0.55;
+    introSound.preload = 'auto';
+  } catch(e) { introSound = null; }
+
+  /* 두 소리는 각자 '차례'가 있다.
+       · 문 소리 — 영상에서 문틈이 밝아지는 2.43초(영상 재생 위치로 건다)
+       · 악기 소리 — 글씨가 써지기 0.56초 전(인트로 시작 후 5.3초, 벽시계)
+     차단돼 있다가 나중에 풀리면, **이미 지난 차례만** 그때 튼다.
+     아직 안 온 차례는 건드리지 않는다 — 순서가 뒤집히면 연출이 무너진다. */
+  var t0 = (window.performance && performance.now) ? performance.now() : Date.now();
+  var cue  = { door:false, inst:false };     // 차례가 왔는가
+  var done = { door:false, inst:false };     // 실제로 울렸는가
+  var busy = { door:false, inst:false };     // 재생을 시도하는 중(중복 호출 방지)
+
+  function soundBtn(show){
+    var sb = document.getElementById('introSoundBtn');
+    if (sb) sb.style.display = show ? 'inline-flex' : 'none';
+  }
+  function fire(key, fromUser){
+    var a = (key === 'door') ? doorSound : introSound;
+    if (!a || done[key] || busy[key] || !cue[key]) return;
+    var pr;
+    busy[key] = true;
+    try { pr = a.play(); } catch(e){ busy[key] = false; return; }
+    if (!pr || !pr.then) { done[key] = true; return; }
+    pr.then(function(){ done[key] = true; soundBtn(false); },
+            function(){ busy[key] = false;                   // 막혔다 → 다시 시도할 수 있게
+                        if (!fromUser) soundBtn(true); });   //            버튼을 내보낸다
+  }
+  function playSound(fromUser){                // 사용자가 눌러 소리가 풀렸을 때
+    var vid = document.getElementById('intro');
+    var vt = vid ? vid.currentTime : 99;
+    if (vt < 3.4) fire('door', fromUser);      // 문이 아직 화면에 있을 때만 의미가 있다
+    fire('inst', fromUser);
+  }
+
+  // 문 소리 차례 — 영상 재생 위치에 건다(로딩이 늦어도 문과 어긋나지 않게)
+  (function(){
+    var vid = document.getElementById('intro'), armed = false;
+    function atDoor(){
+      if (armed) return;
+      if (!vid || vid.currentTime >= 2.20){
+        armed = true; cue.door = true;
+        if (vid) vid.removeEventListener('timeupdate', atDoor);
+        fire('door', false);
+      }
+    }
+    if (vid) vid.addEventListener('timeupdate', atDoor);
+    setTimeout(atDoor, 4000);                  // 영상이 안 뜨는 경우의 대비
+  })();
+
+  // 악기 소리 차례 — 글씨보다 0.56초 먼저. 소리가 예고하고 글씨가 답한다.
+  setTimeout(function(){ cue.inst = true; fire('inst', false); }, 5300);
+
+  // 인트로 어디든 누르면 그 순간 소리가 풀린다(건너뛰기 버튼은 제외)
+  ['pointerdown','keydown','touchstart'].forEach(function(ev){
+    document.addEventListener(ev, function once(e){
+      document.removeEventListener(ev, once);
+      if (e.target && e.target.id === 'introSkip') return;
+      playSound(true);
+    }, {passive:true});
+  });
+
+  function stopSound(){
+    [introSound, doorSound].forEach(function(a){
+      if (!a) return;
+      try { a.pause(); a.currentTime = 0; } catch(e){}
+    });
+    introSound = doorSound = null;
+    soundBtn(false);
+  }
+
   document.getElementById('introSkip').addEventListener('click', finish);
+  document.getElementById('introSoundBtn').addEventListener('click', function(){
+    playSound(true);
+    this.style.display = 'none';
+  });
   // 애니메이션 총 길이(#ui 가 10.20s 에 시작해 .6s) + 여유 — 화이트아웃 1초 단축 반영
   var t = setTimeout(finish, 11200);
   // 자동재생이 막히거나 영상이 실패해도 멈춰 있지 않게

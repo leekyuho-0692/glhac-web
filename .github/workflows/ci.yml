@@ -52,8 +52,10 @@ jobs:
               base = pathlib.Path(html).parent
               s = pathlib.Path(html).read_text(encoding="utf-8")
               for ref in re.findall(r'(?:src|href)="(\./[^"#?]+|[^":#?]+\.(?:js|css|jpg|png|svg|mp4))"', s):
-                  p = (base / ref.lstrip("./")).resolve()
-                  if not p.exists() and not (pathlib.Path(ref.lstrip("./"))).exists():
+                  # board/index.html 은 '../GLHAC_emblem.svg' 처럼 상위를 가리킨다 —
+                  # lstrip('./') 로 자르면 '../' 가 뭉개져 없는 파일로 오판한다(실측).
+                  ref = ref[2:] if ref.startswith("./") else ref
+                  if not (base / ref).resolve().exists():
                       missing.append("%s → %s" % (html, ref))
           for m in missing:
               print("::error::참조 파일 없음: " + m)
