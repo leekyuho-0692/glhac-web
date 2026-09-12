@@ -104,7 +104,7 @@ def test_문소리는_영상과_동시에_울린다():
 
 @pytest.mark.parametrize("tz,lang,want", [
     ("Asia/Seoul",       "ko-KR", "gong.mp3"),
-    ("Asia/Jakarta",     "id-ID", "gamelan.mp3"),
+    ("Asia/Jakarta",     "id-ID", "gamelan2.mp3"),
     ("America/New_York", "en-US", "tadum.mp3"),
     ("Europe/Berlin",    "de-DE", "tadum.mp3"),
 ])

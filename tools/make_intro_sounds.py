@@ -10,10 +10,11 @@
 
 재현되는 것과 아닌 것
   · gong.mp3 · door-creak2.mp3 — 배포된 것과 **바이트까지 같다**(난수 씨앗 고정).
-  · gamelan.mp3 · tadum.mp3   — 원래 만든 코드가 남지 않아, 기존 파일을 분석해
-    특성(기음·부분음·타격 시점·대역 비율)을 뽑아 다시 쓴 것이다. 바이트는 다르다.
-    tadum 은 거의 같고(저음 66.6→66.0%), gamelan 은 저음이 얇다(24.1→12.2%) —
-    타격 네 번(0.22·0.42·0.62·0.88초)과 비배음 구조는 같다.
+  · gamelan2.mp3 — 이 코드가 만든 것이 배포돼 있다(바이트까지 같다). 원래 쓰던
+    gamelan.mp3 는 만든 코드가 남지 않아 재현할 수 없어, 특성만 따서 새로 쓰고
+    교체했다. 저음이 얇아졌지만(24.1→12.2%) 타격 네 번과 비배음 구조는 같다.
+  · tadum.mp3 — 원래 코드가 남지 않았다. 분석해 다시 쓴 것이 거의 같지만
+    (저음 66.6→66.0%) 바이트는 다르다. 배포된 파일은 예전 것 그대로다.
 """
 import argparse
 import hashlib
@@ -202,7 +203,12 @@ def make_door(dst_mp3):
 
 
 # 배포된 파일과 바이트까지 같아야 하는 것들
-EXACT = {"gong.mp3", "door-creak2.mp3"}
+# 소리 이름 → 배포 파일명. 내용이 바뀌면 이름을 바꿔 올린다(/intro/ 는 30일 캐시).
+FILENAME = {"gong": "gong.mp3", "gamelan": "gamelan2.mp3",
+            "tadum": "tadum.mp3", "door-creak2": "door-creak2.mp3"}
+
+# 배포된 파일과 바이트까지 같아야 하는 것들
+EXACT = {"gong.mp3", "door-creak2.mp3", "gamelan2.mp3"}
 
 
 def sha(path):
@@ -213,6 +219,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--write", action="store_true",
                     help="intro/ 를 덮어쓴다(기본은 확인만)")
+    ap.add_argument("--only", metavar="이름",
+                    help="한 소리만 다룬다(gong/gamelan/tadum/door-creak2)")
     args = ap.parse_args()
     args.check = not args.write
 
@@ -223,12 +231,16 @@ def main():
     for name, fn, br in (("gong", make_gong, "112k"),
                          ("gamelan", make_gamelan, "112k"),
                          ("tadum", make_tadum, "112k")):
+        if args.only and args.only != name:
+            continue
         w = os.path.join(tmp, name + ".wav")
         fn(w)
-        encode(w, os.path.join(tmp, name + ".mp3"), br)
-        made[name + ".mp3"] = os.path.join(tmp, name + ".mp3")
+        out = os.path.join(tmp, FILENAME[name])
+        encode(w, out, br)
+        made[FILENAME[name]] = out
 
-    if make_door(os.path.join(tmp, "door-creak2.mp3")):
+    if (not args.only or args.only == "door-creak2") \
+            and make_door(os.path.join(tmp, "door-creak2.mp3")):
         made["door-creak2.mp3"] = os.path.join(tmp, "door-creak2.mp3")
 
     bad = 0
