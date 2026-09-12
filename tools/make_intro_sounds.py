@@ -9,7 +9,7 @@
 기본이 '확인'인 이유: 지금 배포된 소리를 실수로 바꾸지 않기 위해서다.
 
 재현되는 것과 아닌 것
-  · gong.mp3 · door-creak2.mp3 — 배포된 것과 **바이트까지 같다**(난수 씨앗 고정).
+  · gong2.mp3 · door-creak2.mp3 — 배포된 것과 **바이트까지 같다**(난수 씨앗 고정).
   · gamelan2.mp3 — 이 코드가 만든 것이 배포돼 있다(바이트까지 같다). 원래 쓰던
     gamelan.mp3 는 만든 코드가 남지 않아 재현할 수 없어, 특성만 따서 새로 쓰고
     교체했다. 저음이 얇아졌지만(24.1→12.2%) 타격 네 번과 비배음 구조는 같다.
@@ -54,16 +54,17 @@ def make_gong(out_wav):
       ③ 때린 직후보다 조금 뒤에 피어오르는 고음(비선형 공진) — 그래서 '퍼지는' 느낌이 난다
     """
     rng = np.random.default_rng(7)          # 고정 — 매번 같은 소리가 나와야 한다
-    dur = 3.6
+    dur = 5.0                               # 인트로는 11.2초에 끝난다(징은 5.3초에 시작)
     n = int(dur * SR)
     t = np.arange(n) / SR
     out = np.zeros(n)
 
+    # 감쇠를 늦춰 여운을 늘린다 — 길이만 늘리면 뒤가 텅 빈다.
     #                주파수  세기   감쇠  맥놀이 어긋남(Hz)
-    partials = [(92, 1.00, 0.55, 2.6), (151, 0.42, 0.8, 3.9),
-                (248, 0.30, 1.1, 5.1), (372, 0.20, 1.5, 6.3),
-                (505, 0.14, 2.0, 7.7), (741, 0.09, 2.7, 9.2),
-                (1063, 0.05, 3.4, 11.4)]
+    partials = [(92, 1.00, 0.38, 2.6), (151, 0.42, 0.56, 3.9),
+                (248, 0.30, 0.77, 5.1), (372, 0.20, 1.05, 6.3),
+                (505, 0.14, 1.40, 7.7), (741, 0.09, 1.89, 9.2),
+                (1063, 0.05, 2.38, 11.4)]
     for f, a, d, beat in partials:
         env = np.exp(-t * d)
         out += a * env * (np.sin(2 * np.pi * f * t)
@@ -72,14 +73,14 @@ def make_gong(out_wav):
     bloom = np.zeros(n)                      # ③ 나중에 피어오르는 고음
     for f, a in ((1480, .10), (1970, .08), (2630, .05), (3310, .035)):
         bloom += a * np.sin(2 * np.pi * f * t + rng.uniform(0, 6.28))
-    out += bloom * (t / 0.35 * np.exp(1 - t / 0.35)) * np.exp(-t * 1.5)
+    out += bloom * (t / 0.35 * np.exp(1 - t / 0.35)) * np.exp(-t * 1.05)
 
     out += rng.normal(0, 1, n) * np.exp(-t * 90) * 0.28      # 때리는 순간
 
     out *= np.minimum(1, t / 0.004)
     out /= np.max(np.abs(out)) + 1e-9
     out *= 0.85
-    f = int(0.9 * SR)
+    f = int(1.3 * SR)
     out[-f:] *= np.cos(np.linspace(0, np.pi / 2, f)) ** 1.5  # 자연스러운 소멸
     write_wav(out_wav, out)
 
@@ -204,11 +205,11 @@ def make_door(dst_mp3):
 
 # 배포된 파일과 바이트까지 같아야 하는 것들
 # 소리 이름 → 배포 파일명. 내용이 바뀌면 이름을 바꿔 올린다(/intro/ 는 30일 캐시).
-FILENAME = {"gong": "gong.mp3", "gamelan": "gamelan2.mp3",
+FILENAME = {"gong": "gong2.mp3", "gamelan": "gamelan2.mp3",
             "tadum": "tadum2.mp3", "door-creak2": "door-creak2.mp3"}
 
 # 배포된 파일과 바이트까지 같아야 하는 것들
-EXACT = {"gong.mp3", "door-creak2.mp3", "gamelan2.mp3", "tadum2.mp3"}
+EXACT = {"gong2.mp3", "door-creak2.mp3", "gamelan2.mp3", "tadum2.mp3"}
 
 
 def sha(path):

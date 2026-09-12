@@ -75,7 +75,7 @@ def test_화면을_누르면_소리가_풀린다():
                             p.wait_for_timeout(6000)))
     names = ok_names(played)
     assert "door-creak2.mp3" in names, "문 소리가 안 났다: %s" % played
-    assert {"gong.mp3"} & names, "악기 소리가 안 났다: %s" % played
+    assert {"gong2.mp3"} & names, "악기 소리가 안 났다: %s" % played
     assert btn == "none", "소리가 났는데 버튼이 남아 있다"
     assert not errs
 
@@ -86,9 +86,9 @@ def test_소리켜기_버튼이_실제로_동작한다():
                             p.click("#introSoundBtn"),
                             p.wait_for_timeout(2500)))
     names = ok_names(played)
-    assert "gong.mp3" in names, "버튼을 눌렀는데 소리가 안 난다: %s" % played
+    assert "gong2.mp3" in names, "버튼을 눌렀는데 소리가 안 난다: %s" % played
     # 같은 소리가 두 번 울리면(버튼 + 전역 리스너) 겹쳐 들린다
-    hits = [e for e in played if e["f"] == "gong.mp3" and e["ok"]]
+    hits = [e for e in played if e["f"] == "gong2.mp3" and e["ok"]]
     assert len(hits) == 1, "악기 소리가 %d번 겹쳐 울렸다" % len(hits)
     assert not errs
 
@@ -103,7 +103,7 @@ def test_문소리는_영상과_동시에_울린다():
 
 
 @pytest.mark.parametrize("tz,lang,want", [
-    ("Asia/Seoul",       "ko-KR", "gong.mp3"),
+    ("Asia/Seoul",       "ko-KR", "gong2.mp3"),
     ("Asia/Jakarta",     "id-ID", "gamelan2.mp3"),
     ("America/New_York", "en-US", "tadum2.mp3"),
     ("Europe/Berlin",    "de-DE", "tadum2.mp3"),
